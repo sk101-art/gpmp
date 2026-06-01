@@ -1,0 +1,59 @@
+services:
+  # PostgreSQL with pgvector for embedding storage
+  db:
+    image: ankane/pgvector
+    container_name: resume_analyzer_db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: resume_analyzer
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching and Celery task queue
+  redis:
+    image: redis:7-alpine
+    container_name: resume_analyzer_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Ollama for local LLM inference (Qwen 2.5:7b)
+  # Note: This requires ~5GB of disk space for model
+  # On first run, it will download the model (~4.7GB)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: resume_analyzer_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+    # Pre-pull model on startup (optional, can take 10+ minutes)
+    # command: ollama pull qwen2.5:7b
+    # Or use: ollama pull phi3:mini as alternative
+
+  # Note: Backend and Worker run locally (not in Docker) to avoid memory issues
+  # Run these in separate terminals:
+  # - uvicorn backend.main:app --reload --port 8000
+  # - celery -A backend.worker.celery_app worker --loglevel=info
+
+volumes:
+  postgres_data:
+  redis_data:
+  ollama_data:
+
